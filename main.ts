@@ -62,8 +62,10 @@ export default class SummaryPlugin extends Plugin {
 					list = list.filter((tag) => {
 						if (tag.match(/^#[a-zA-Z]+[^#]*$/)) {
 							return true;
+						} else if (tag == "all") {
+						  return true;
 						} else {
-							return false;
+						  return false;
 						}
 					});
 					tags = list;
@@ -122,7 +124,17 @@ export default class SummaryPlugin extends Plugin {
 	// Load the blocks and create the summary
 	async createSummary(element: HTMLElement, tags: string[], include: string[], exclude: string[], filePath: string) {
 		const validTags = tags.concat(include); // All the tags selected by the user
-
+    console.log(validTags);
+    
+    //Deine the type for tag data 
+    type TagData = {
+      tag: string; 
+      file: string;
+      path: string;
+      text: string; 
+    }
+    let all_tag_info: TagData[] = Array();
+    
 		// Get files
 		let listFiles = this.app.vault.getMarkdownFiles();
 
@@ -134,6 +146,9 @@ export default class SummaryPlugin extends Plugin {
 
 			if (validTags.some((value) => tagsInFile.includes(value))) {
 				return true;
+			}
+			if (validTags.includes("all")) {
+			  return true;
 			}
 			return false;
         });
@@ -174,6 +189,8 @@ export default class SummaryPlugin extends Plugin {
 
 				// If valid, include the paragraph in the summary
 				if (valid) {
+				  
+				  
 					// Restore newline at the end
 					paragraph += "\n";
 
@@ -181,9 +198,18 @@ export default class SummaryPlugin extends Plugin {
 					if (this.settings.removetags) {
 						paragraph = paragraph.replace(/#[a-zA-Z0-9_\-/#]+/g, "");
 					}
+					
+					listTags.forEach((t) => {
+				    all_tag_info.push({tag: t,
+				                       file: fileName,
+				                       path: filePath,
+				                       text: paragraph
+				    });
+				  });
+
 
 					// Add link to original note
-					if (this.settings.includelink) {
+					if (this.settings. includelink) {
 						paragraph = "**Source:** [[" + filePath + "|" + fileName + "]]\n" + paragraph;
 					}
 
@@ -206,7 +232,48 @@ export default class SummaryPlugin extends Plugin {
 				}
 			});
 		});
-
+    
+    all_tag_info = all_tag_info.sort((td1, td2) => {
+      if (td1.tag < td2.tag) {
+        return -1;
+      } else if (td1.tag > td2.tag) {
+        return 1;
+      } else {
+        if (td1.file < td2.file) {
+          return -1;
+        } else if (td1.file > td2.file) {
+          return 1;
+        } else {
+          return 0;
+        }
+      }
+    });
+    console.log(all_tag_info);
+    
+    // Rebuild the summary
+    summary = "";
+    let prev_tag: String = "";
+    let prev_file: String = "";
+    
+    all_tag_info.forEach( (tag_data) => {
+      if (tag_data.tag != prev_tag) {
+        summary += " \n\n## " + tag_data.tag.replace(/#/g, "") + "\n";
+        prev_tag = tag_data.tag;
+        prev_file = ""; //Reset previous file when we get to a new tag
+      }
+      if (tag_data.file != prev_file) {
+        if (this.settings. includelink) {
+          summary += "###### " + "[[" + tag_data.path + "|" + tag_data.file + "]]" + "\n";
+        } else {
+          summary += "###### " + tag_data.file + "\n";
+        }
+        prev_file = tag_data.file;
+      }
+      summary += "+ " + tag_data.text;
+      console.log(summary);
+    });
+		
+    
 		// Add Summary
 		if (summary != "") {
 			let summaryContainer = createEl("div");
@@ -232,6 +299,11 @@ export default class SummaryPlugin extends Plugin {
 	isValidText(listTags: string[], tags: string[], include: string[], exclude: string[]): boolean {
 		let valid = true;
 
+    console.log(tags);
+    if (tags.includes("all")) {
+      return true;
+    }
+    
 		// Check OR (tags)
 		if (tags.length > 0) {
 			valid = valid && tags.some((value) => listTags.includes(value));
